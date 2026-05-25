@@ -1,0 +1,32 @@
+# Secrets
+.env
+*.env
+
+# ML Models (чоң файлдар)
+*.pt
+*.pth
+runs/
+datasets/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Django
+backend/db.sqlite3
+*.log
+media/
+reports/violations/
+
+# Mac
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
