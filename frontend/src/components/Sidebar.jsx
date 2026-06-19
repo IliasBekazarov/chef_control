@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, ClipboardList, FolderOpen,
-  Users, Settings, ChefHat, X, Activity,
+  Users, Settings, ChefHat, X, Activity, Brain,
 } from "lucide-react";
 
 export default function Sidebar({ open, onClose }) {
@@ -17,7 +17,10 @@ export default function Sidebar({ open, onClose }) {
     { to: "/records",  icon: ClipboardList,   label: t("records")   },
     { to: "/sessions", icon: FolderOpen,      label: t("sessions")  },
     ...(isAdmin()
-      ? [{ to: "/users", icon: Users, label: t("users") }]
+      ? [
+          { to: "/users",    icon: Users,  label: t("users") },
+          { to: "/training", icon: Brain,  label: "ML Тренинг" },
+        ]
       : []),
     { to: "/settings", icon: Settings, label: t("settings") },
   ];

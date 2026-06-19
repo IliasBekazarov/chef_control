@@ -66,3 +66,28 @@ class DetectionRecord(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
+
+
+class AlertSettings(models.Model):
+    """Telegram алерт жөндөөлөрү — глобалдык, бир жазуу гана"""
+    bot_token          = models.CharField(max_length=120, blank=True)
+    chat_id            = models.CharField(max_length=64, blank=True)
+    enabled            = models.BooleanField(default=False)
+    # N ирет катары бузуу болсо гана алерт жиберет
+    violation_threshold = models.PositiveIntegerField(default=1)
+    # Эки алерттин ортосундагы минималдык убакыт (мин)
+    cooldown_minutes   = models.PositiveIntegerField(default=5)
+    last_alert_at      = models.DateTimeField(null=True, blank=True)
+    # Учурдагы катары бузуулардын саны
+    consecutive_violations = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Alert Settings"
+
+    def __str__(self):
+        return f"AlertSettings (enabled={self.enabled})"
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

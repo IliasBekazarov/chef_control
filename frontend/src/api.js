@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: "/api" });
+// Dev: VITE_API_URL жок → Vite proxy аркылуу /api (localhost:8000)
+// Prod: VITE_API_URL=https://your-backend.railway.app
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
+const api = axios.create({ baseURL: `${BASE_URL}/api` });
 
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("access");
@@ -17,7 +21,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem("refresh");
       if (refresh) {
         try {
-          const { data } = await axios.post("/api/auth/refresh/", { refresh });
+          const { data } = await axios.post(`${BASE_URL}/api/auth/refresh/`, { refresh });
           localStorage.setItem("access", data.access);
           orig.headers.Authorization = `Bearer ${data.access}`;
           return api(orig);

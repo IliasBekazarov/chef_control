@@ -11,7 +11,8 @@ import RecordsPage  from "./pages/RecordsPage";
 import SessionsPage from "./pages/SessionsPage";
 import UsersPage    from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
-import MonitorPage  from "./pages/MonitorPage";
+import MonitorPage   from "./pages/MonitorPage";
+import TrainingPage  from "./pages/TrainingPage";
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
               <Route path="sessions" element={<SessionsPage />} />
               <Route path="monitor"  element={<MonitorPage />} />
               <Route path="users"    element={<UsersPage />} />
+              <Route path="training" element={<TrainingPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

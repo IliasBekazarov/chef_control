@@ -2,17 +2,37 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { FolderOpen, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
+import { FolderOpen, ChevronRight, CheckCircle2, XCircle, FileDown, Loader2 } from "lucide-react";
 import api from "../api";
 import LoadingSpinner from "../components/LoadingSpinner";
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function SessionsPage() {
   const { t } = useTranslation();
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [records,  setRecords]  = useState([]);
-  const [recLoading, setRecLoading] = useState(false);
+  const [sessions,    setSessions]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [selected,    setSelected]    = useState(null);
+  const [records,     setRecords]     = useState([]);
+  const [recLoading,  setRecLoading]  = useState(false);
+  const [pdfLoading,  setPdfLoading]  = useState(false);
+
+  const downloadSessionPdf = async (session) => {
+    setPdfLoading(true);
+    try {
+      const resp = await api.get(`/reports/pdf/session/${session.session_id}/`, {
+        responseType: "blob",
+      });
+      downloadBlob(resp.data, `chef_report_${session.session_id}.pdf`);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.get("/sessions/", { params: { ordering: "-started_at", page_size: 50 } })
@@ -131,8 +151,16 @@ export default function SessionsPage() {
               ))}
             </div>
 
-            <div className="p-4 border-t border-[var(--border)]">
-              <button onClick={() => setSelected(null)} className="btn-primary w-full">Жабуу</button>
+            <div className="p-4 border-t border-[var(--border)] flex gap-3">
+              <button
+                onClick={() => downloadSessionPdf(selected)}
+                disabled={pdfLoading}
+                className="btn-secondary flex items-center gap-2 flex-1"
+              >
+                {pdfLoading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+                PDF жүктөө
+              </button>
+              <button onClick={() => setSelected(null)} className="btn-primary flex-1">Жабуу</button>
             </div>
           </motion.div>
         </div>

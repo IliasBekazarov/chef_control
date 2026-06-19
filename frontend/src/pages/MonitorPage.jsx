@@ -1,53 +1,154 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import {
-  CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff,
-  ChefHat, Shirt, Clock, AlertTriangle, Activity,
+  CheckCircle2, XCircle, Wifi, WifiOff,
+  ChefHat, Shirt, AlertTriangle, Activity, Radio,
 } from "lucide-react";
 import api from "../api";
 
-const REFRESH_INTERVAL = 10_000; // 10 секунд
+// Dev: ws://localhost:8000  |  Prod: VITE_WS_URL=wss://your-backend.railway.app
+const _wsBase = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000";
+const WS_URL  = `${_wsBase}/ws/monitor/`;
+const RECONNECT_DELAY_MS = 3000;
+const POLL_INTERVAL_MS   = 10_000;
 
-export default function MonitorPage() {
-  const { t } = useTranslation();
+function useMonitorSocket() {
   const [record,   setRecord]   = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [online,   setOnline]   = useState(true);
+  const [wsState,  setWsState]  = useState("connecting");
   const [lastSync, setLastSync] = useState(null);
-  const [countdown, setCountdown] = useState(REFRESH_INTERVAL / 1000);
-  const timerRef  = useRef(null);
-  const countRef  = useRef(null);
+  const wsRef     = useRef(null);
+  const retryRef  = useRef(null);
+  const pollRef   = useRef(null);
+  const unmounted = useRef(false);
 
-  const fetchLatest = async () => {
+  // REST'тен акыркы record'ду тартат — ар 10с polling + баштоо
+  const fetchLatest = useCallback(async () => {
     try {
       const { data } = await api.get("/records/", {
         params: { ordering: "-timestamp", page_size: 1 },
       });
-      const items = data.results || data;
-      setRecord(items[0] || null);
-      setOnline(true);
+      const items = data.results ?? data;
+      if (unmounted.current || !items[0]) return;
+      setRecord(items[0]);
       setLastSync(new Date());
-    } catch {
-      setOnline(false);
-    } finally {
-      setLoading(false);
-      setCountdown(REFRESH_INTERVAL / 1000);
-    }
-  };
+    } catch { /* silent */ }
+  }, []);
 
-  useEffect(() => {
-    fetchLatest();
-    timerRef.current = setInterval(fetchLatest, REFRESH_INTERVAL);
-    countRef.current = setInterval(() => {
-      setCountdown((c) => (c > 0 ? c - 1 : REFRESH_INTERVAL / 1000));
-    }, 1000);
-    return () => {
-      clearInterval(timerRef.current);
-      clearInterval(countRef.current);
+  const connectWs = useCallback(() => {
+    if (unmounted.current) return;
+    const token = localStorage.getItem("access") ||
+                  localStorage.getItem("access_token") ||
+                  JSON.parse(localStorage.getItem("auth") || "{}").access;
+    if (!token) { setWsState("closed"); return; }
+
+    const ws = new WebSocket(`${WS_URL}?token=${token}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      if (!unmounted.current) setWsState("open");
+    };
+    ws.onclose = () => {
+      if (unmounted.current) return;
+      setWsState("closed");
+      retryRef.current = setTimeout(connectWs, RECONNECT_DELAY_MS);
+    };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (!unmounted.current) { setRecord(data); setLastSync(new Date()); }
+      } catch { /* ignore */ }
     };
   }, []);
+
+  useEffect(() => {
+    unmounted.current = false;
+
+    // Баштапкы маалымат
+    fetchLatest();
+
+    // WebSocket туташуу
+    connectWs();
+
+    // Ар 10 секунтта polling (WebSocket иштебегенде резерв)
+    pollRef.current = setInterval(fetchLatest, POLL_INTERVAL_MS);
+
+    return () => {
+      unmounted.current = true;
+      clearTimeout(retryRef.current);
+      clearInterval(pollRef.current);
+      wsRef.current?.close();
+    };
+  }, []);
+
+  return { record, wsState, lastSync };
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+function LiveBadge({ state }) {
+  if (state === "open") {
+    return (
+      <div className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full
+                      bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+        </span>
+        LIVE
+      </div>
+    );
+  }
+  if (state === "connecting") {
+    return (
+      <div className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full
+                      bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <Radio size={13} className="animate-pulse" />
+        Байланышуу…
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full
+                    bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+      <WifiOff size={13} /> Офлайн
+    </div>
+  );
+}
+
+function PPECard({ ok, icon: Icon, label, onLabel, offLabel, delay }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      className={`card p-6 flex items-center gap-4 border-2 ${
+        ok ? "border-emerald-300 dark:border-emerald-600"
+           : "border-red-300 dark:border-red-600"}`}
+    >
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0
+        ${ok ? "bg-emerald-100 dark:bg-emerald-900/30"
+             : "bg-red-100 dark:bg-red-900/30"}`}>
+        <Icon size={28} className={ok ? "text-emerald-500" : "text-red-500"} />
+      </div>
+      <div>
+        <p className="font-bold text-lg">{label}</p>
+        <p className={`text-sm font-semibold ${ok ? "text-emerald-500" : "text-red-500"}`}>
+          {ok ? onLabel : offLabel}
+        </p>
+      </div>
+      <div className="ml-auto">
+        {ok ? <CheckCircle2 size={28} className="text-emerald-400" />
+            : <XCircle     size={28} className="text-red-400" />}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function MonitorPage() {
+  const { t }                        = useTranslation();
+  const { record, wsState, lastSync } = useMonitorSocket();
 
   const isCompliant = record?.is_compliant;
   const hasHat      = record?.has_hat;
@@ -64,36 +165,10 @@ export default function MonitorPage() {
           </h1>
           <p className="text-sm text-[var(--muted)] mt-1">{t("monitorDesc")}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Online indicator */}
-          <div className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full
-            ${online ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                     : "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"}`}>
-            {online ? <Wifi size={14} /> : <WifiOff size={14} />}
-            {online ? t("online") : t("offline")}
-          </div>
-          {/* Refresh countdown */}
-          <div className="flex items-center gap-1.5 text-xs text-[var(--muted)] bg-[var(--surface)]
-                          border border-[var(--border)] px-3 py-1.5 rounded-full">
-            <Clock size={12} />
-            {countdown}s
-          </div>
-          <button onClick={fetchLatest}
-                  className="btn-ghost flex items-center gap-1.5 text-sm">
-            <RefreshCw size={14} /> {t("refresh")}
-          </button>
-        </div>
+        <LiveBadge state={wsState} />
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center space-y-3">
-            <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500
-                            rounded-full animate-spin mx-auto" />
-            <p className="text-sm text-[var(--muted)]">{t("loading")}</p>
-          </div>
-        </div>
-      ) : !record ? (
+      {!record ? (
         <div className="card p-16 text-center text-[var(--muted)]">
           <Activity size={40} className="mx-auto mb-3 opacity-30" />
           <p className="font-medium">{t("noData")}</p>
@@ -112,9 +187,9 @@ export default function MonitorPage() {
                 isCompliant
                   ? "border-emerald-400 dark:border-emerald-500"
                   : "border-red-400 dark:border-red-500"
-              }`}>
+              }`}
+            >
               <div className="flex flex-col sm:flex-row items-center gap-6">
-                {/* Status icon */}
                 <div className={`w-24 h-24 rounded-3xl flex items-center justify-center flex-shrink-0
                   ${isCompliant
                     ? "bg-emerald-100 dark:bg-emerald-900/30"
@@ -142,7 +217,6 @@ export default function MonitorPage() {
                     </div>
                   )}
                 </div>
-                {/* Frame image */}
                 {record.frame_image && (
                   <img src={record.frame_image} alt="frame"
                        className="w-36 h-24 object-cover rounded-2xl border border-[var(--border)] flex-shrink-0" />
@@ -151,61 +225,21 @@ export default function MonitorPage() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Hat & Apron cards */}
+          {/* Hat & Apron */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.05 }}
-                        className={`card p-6 flex items-center gap-4 border-2 ${
-                          hasHat ? "border-emerald-300 dark:border-emerald-600"
-                                 : "border-red-300 dark:border-red-600"}`}>
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0
-                ${hasHat ? "bg-emerald-100 dark:bg-emerald-900/30"
-                         : "bg-red-100 dark:bg-red-900/30"}`}>
-                <ChefHat size={28} className={hasHat ? "text-emerald-500" : "text-red-500"} />
-              </div>
-              <div>
-                <p className="font-bold text-lg">{t("hatStatus")}</p>
-                <p className={`text-sm font-semibold ${hasHat ? "text-emerald-500" : "text-red-500"}`}>
-                  {hasHat ? t("hatOn") : t("hatOff")}
-                </p>
-                
-              </div>
-              <div className="ml-auto">
-                {hasHat
-                  ? <CheckCircle2 size={28} className="text-emerald-400" />
-                  : <XCircle     size={28} className="text-red-400" />}
-              </div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className={`card p-6 flex items-center gap-4 border-2 ${
-                          hasApron ? "border-emerald-300 dark:border-emerald-600"
-                                   : "border-red-300 dark:border-red-600"}`}>
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0
-                ${hasApron ? "bg-emerald-100 dark:bg-emerald-900/30"
-                           : "bg-red-100 dark:bg-red-900/30"}`}>
-                <Shirt size={28} className={hasApron ? "text-emerald-500" : "text-red-500"} />
-              </div>
-              <div>
-                <p className="font-bold text-lg">{t("apronStatus")}</p>
-                <p className={`text-sm font-semibold ${hasApron ? "text-emerald-500" : "text-red-500"}`}>
-                  {hasApron ? t("apronOn") : t("apronOff")}
-                </p>
-                
-              </div>
-              <div className="ml-auto">
-                {hasApron
-                  ? <CheckCircle2 size={28} className="text-emerald-400" />
-                  : <XCircle     size={28} className="text-red-400" />}
-              </div>
-            </motion.div>
+            <PPECard ok={hasHat}   icon={ChefHat} label={t("hatStatus")}
+                     onLabel={t("hatOn")} offLabel={t("hatOff")} delay={0.05} />
+            <PPECard ok={hasApron} icon={Shirt}   label={t("apronStatus")}
+                     onLabel={t("apronOn")} offLabel={t("apronOff")} delay={0.1} />
           </div>
 
           {/* Last sync */}
           {lastSync && (
             <p className="text-xs text-center text-[var(--muted)]">
-              {t("lastSync")}: {format(lastSync, "HH:mm:ss")} · {t("autoRefresh", { sec: REFRESH_INTERVAL / 1000 })}
+              {t("lastSync")}: {format(lastSync, "HH:mm:ss")}
+              {wsState === "open"
+                ? " · Real-time (WebSocket)"
+                : " · Акыркы кэш"}
             </p>
           )}
         </>

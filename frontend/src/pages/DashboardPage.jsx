@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   ClipboardCheck, AlertTriangle, TrendingUp,
-  FolderOpen, Users, CalendarCheck,
+  FolderOpen, Users, CalendarCheck, FileDown, Loader2,
 } from "lucide-react";
 import api from "../api";
 import StatCard from "../components/StatCard";
@@ -15,16 +15,38 @@ import LoadingSpinner from "../components/LoadingSpinner";
 
 const COLORS = ["#f97316", "#ef4444", "#3b82f6", "#8b5cf6", "#10b981"];
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function DashboardPage() {
   const { t }         = useTranslation();
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats,       setStats]      = useState(null);
+  const [loading,     setLoading]    = useState(true);
+  const [pdfLoading,  setPdfLoading] = useState(false);
 
   useEffect(() => {
     api.get("/dashboard/")
       .then(({ data }) => setStats(data))
       .finally(() => setLoading(false));
   }, []);
+
+  const downloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const resp  = await api.get("/reports/pdf/range/", {
+        params:       { date_to: today },
+        responseType: "blob",
+      });
+      downloadBlob(resp.data, `chef_report_${today}.pdf`);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   if (loading) return <LoadingSpinner text={t("loading")} />;
   if (!stats)  return null;
@@ -37,9 +59,19 @@ export default function DashboardPage() {
   return (
     <div className="p-4 lg:p-6 space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">{t("dashboard")}</h1>
-        <p className="text-sm text-[var(--muted)] mt-1">{t("appDesc")}</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">{t("dashboard")}</h1>
+          <p className="text-sm text-[var(--muted)] mt-1">{t("appDesc")}</p>
+        </div>
+        <button
+          onClick={downloadPdf}
+          disabled={pdfLoading}
+          className="btn-secondary flex items-center gap-2 flex-shrink-0"
+        >
+          {pdfLoading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+          PDF отчет
+        </button>
       </div>
 
       {/* Stat cards */}

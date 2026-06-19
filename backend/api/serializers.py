@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, DetectionSession, DetectionRecord
+from .models import UserProfile, DetectionSession, DetectionRecord, AlertSettings
 
 
 # ─── Auth ───────────────────────────────────────────────────────────────────
@@ -83,6 +83,18 @@ class DetectionSessionSerializer(serializers.ModelSerializer):
         if obj.created_by:
             return obj.created_by.get_full_name() or obj.created_by.username
         return "System"
+
+
+# ─── Alert Settings ─────────────────────────────────────────────────────────
+class AlertSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = AlertSettings
+        fields = [
+            "enabled", "bot_token", "chat_id",
+            "violation_threshold", "cooldown_minutes",
+            "last_alert_at", "consecutive_violations",
+        ]
+        read_only_fields = ["last_alert_at", "consecutive_violations"]
 
 
 # ─── Dashboard stats ────────────────────────────────────────────────────────

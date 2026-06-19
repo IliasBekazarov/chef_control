@@ -19,6 +19,16 @@ urlpatterns = [
     path("dashboard/",    views.DashboardStatsView.as_view(),name="dashboard"),
     # Ingest
     path("ingest/",       views.ingest_record,               name="ingest"),
+    # Alert Settings
+    path("settings/alerts/",      views.AlertSettingsView.as_view(), name="alert-settings"),
+    path("settings/alerts/test/", views.test_alert,                  name="alert-test"),
+    # PDF Reports
+    path("reports/pdf/session/<str:session_id>/", views.pdf_session_report, name="pdf-session"),
+    path("reports/pdf/range/",                    views.pdf_range_report,   name="pdf-range"),
+    # Training
+    path("training/status/", views.training_status, name="training-status"),
+    path("training/start/",  views.training_start,  name="training-start"),
+    path("training/stop/",   views.training_stop,   name="training-stop"),
     # ViewSets
     path("", include(router.urls)),
 ]
