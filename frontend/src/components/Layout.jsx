@@ -10,7 +10,6 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
-  if (!user)   return <Navigate to="/login" replace />;
 
   return (
     <div className="flex min-h-screen">

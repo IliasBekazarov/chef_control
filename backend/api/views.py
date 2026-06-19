@@ -88,20 +88,16 @@ class UserListView(generics.ListAPIView):
 class DetectionSessionViewSet(viewsets.ModelViewSet):
     queryset         = DetectionSession.objects.all()
     serializer_class = DetectionSessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # GET — баардыгы окуй алат; POST/PUT/DELETE — auth керек
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends  = [DjangoFilterBackend, OrderingFilter, SearchFilter]
     filterset_fields = ["session_id"]
     search_fields    = ["session_id", "notes"]
     ordering_fields  = ["started_at", "total_checks", "violations"]
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        is_admin = (user.is_staff or
-                    getattr(getattr(user, "profile", None), "role", "") == "admin")
-        if not is_admin:
-            qs = qs.filter(created_by=user)
-        return qs
+        # Аутентификациясыз — бардык сессиялар көрүнөт
+        return super().get_queryset()
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -111,35 +107,29 @@ class DetectionSessionViewSet(viewsets.ModelViewSet):
 class DetectionRecordViewSet(viewsets.ModelViewSet):
     queryset         = DetectionRecord.objects.select_related("session").all()
     serializer_class = DetectionRecordSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # GET — баардыгы окуй алат; POST/PUT/DELETE — auth керек
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends  = [DjangoFilterBackend, OrderingFilter, SearchFilter]
     filterset_fields = ["is_compliant", "has_hat", "has_apron", "session"]
     ordering_fields  = ["timestamp", "created_at"]
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        is_admin = (user.is_staff or
-                    getattr(getattr(user, "profile", None), "role", "") == "admin")
-        if not is_admin:
-            qs = qs.filter(session__created_by=user)
-        return qs
+        # Аутентификациясыз — бардык жазуулар көрүнөт
+        return super().get_queryset()
 
 
 # ─── Dashboard Stats ────────────────────────────────────────────────────────
 class DashboardStatsView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        user     = request.user
-        is_admin = (user.is_staff or
-                    getattr(getattr(user, "profile", None), "role", "") == "admin")
-
+        # Аутентификациясыз колдонуучулар бардык маалыматты көрөт
         records_qs  = DetectionRecord.objects.all()
         sessions_qs = DetectionSession.objects.all()
-        if not is_admin:
-            records_qs  = records_qs.filter(session__created_by=user)
-            sessions_qs = sessions_qs.filter(created_by=user)
+        user        = request.user
+        is_admin    = (user.is_authenticated and
+                       (user.is_staff or
+                        getattr(getattr(user, "profile", None), "role", "") == "admin"))
 
         today = timezone.now().date()
         total_checks     = records_qs.count()

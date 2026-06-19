@@ -8,21 +8,23 @@ import {
 } from "lucide-react";
 
 export default function Sidebar({ open, onClose }) {
-  const { t }    = useTranslation();
-  const { isAdmin } = useAuth();
+  const { t }           = useTranslation();
+  const { user, isAdmin } = useAuth();
 
   const links = [
+    // Ачык баракчалар
     { to: "/",         icon: LayoutDashboard, label: t("dashboard") },
     { to: "/monitor",  icon: Activity,        label: t("monitor"),  pulse: true },
     { to: "/records",  icon: ClipboardList,   label: t("records")   },
     { to: "/sessions", icon: FolderOpen,      label: t("sessions")  },
-    ...(isAdmin()
+    // Admin гана пункттар
+    ...(user && isAdmin()
       ? [
-          { to: "/users",    icon: Users,  label: t("users") },
-          { to: "/training", icon: Brain,  label: "ML Тренинг" },
+          { to: "/users",    icon: Users,    label: t("users") },
+          { to: "/training", icon: Brain,    label: "ML Тренинг" },
+          { to: "/settings", icon: Settings, label: t("settings") },
         ]
       : []),
-    { to: "/settings", icon: Settings, label: t("settings") },
   ];
 
   const SidebarContent = () => (

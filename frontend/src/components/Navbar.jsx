@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { Sun, Moon, Globe, LogOut, Menu, ChefHat } from "lucide-react";
+import { Sun, Moon, Globe, LogOut, Menu, ChefHat, LogIn } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
@@ -15,6 +16,7 @@ export default function Navbar({ onMenuClick }) {
   const { dark, toggle }  = useTheme();
   const { user, logout }  = useAuth();
   const { i18n, t }       = useTranslation();
+  const navigate          = useNavigate();
   const [langOpen, setLangOpen] = useState(false);
 
   const changeLang = (code) => {
@@ -74,8 +76,8 @@ export default function Navbar({ onMenuClick }) {
           {dark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {/* User avatar */}
-        {user && (
+        {/* User: кирген болсо — аватар+чыгуу, кирбесе — Кирүү баскычы */}
+        {user ? (
           <div className="flex items-center gap-2 pl-2 border-l border-[var(--border)]">
             <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center
                             text-white text-sm font-bold">
@@ -91,6 +93,13 @@ export default function Navbar({ onMenuClick }) {
               <LogOut size={16} />
             </button>
           </div>
+        ) : (
+          <button onClick={() => navigate("/login")}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                             bg-primary-500 text-white hover:bg-primary-600 transition">
+            <LogIn size={15} />
+            <span className="hidden sm:inline">Кирүү</span>
+          </button>
         )}
       </div>
     </header>
