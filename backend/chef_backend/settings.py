@@ -66,10 +66,11 @@ CHANNEL_LAYERS = {
 }
 
 # ─── Database ────────────────────────────────────────────────────────────────
-# Local: SQLite  |  Production (Railway): DATABASE_URL env var → PostgreSQL
+# Local: SQLite in BASE_DIR  |  Fly.io: SQLite on /data volume  |  Any: DATABASE_URL
+_db_dir = Path(env("DB_DIR", default=str(BASE_DIR)))
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR}/db.sqlite3",
+        default=f"sqlite:///{_db_dir}/db.sqlite3",
         conn_max_age=600,
     )
 }
@@ -90,7 +91,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL  = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "media")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

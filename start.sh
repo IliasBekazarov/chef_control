@@ -1,68 +1,78 @@
 #!/usr/bin/env bash
 # ============================================================
-#   Chef Control — Баарын баштоо скрипти
+#   Chef Control — Production баштоо скрипти
 #   Иштетүү: ./start.sh
+#   Токтотуу: Ctrl+C
 # ============================================================
-
-set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/backend"
-FRONTEND_DIR="$SCRIPT_DIR/frontend"
 LOG_DIR="$SCRIPT_DIR/logs"
+NGROK_DOMAIN="moisture-fancy-outright.ngrok-free.dev"
 
 mkdir -p "$LOG_DIR"
 
-echo "========================================"
-echo "  🍳  Chef Control — Баштоо"
-echo "========================================"
+echo "========================================================"
+echo "  Chef Control — Production Mode"
+echo "========================================================"
 
-# ─── Backend (Django) ────────────────────────────────────────
+# Эски процесстерди токтот
+pkill -f "manage.py runserver" 2>/dev/null || true
+pkill -f "ngrok http"          2>/dev/null || true
+sleep 1
+
+# ─── Backend (Django ASGI + WebSocket) ───────────────────────
 echo ""
-echo "▶ Django backend баштоо (port 8000)…"
-
-# Виртуалдык чөйрө бар болсо иштет
-if [ -d "$SCRIPT_DIR/venv" ]; then
-    source "$SCRIPT_DIR/venv/bin/activate"
-fi
-
+echo "  Django backend баштоо (port 8000)..."
 cd "$BACKEND_DIR"
-python3 manage.py migrate --run-syncdb > "$LOG_DIR/django.log" 2>&1 || true
-nohup python3 manage.py runserver 0.0.0.0:8000 >> "$LOG_DIR/django.log" 2>&1 &
+python3 manage.py migrate --noinput > "$LOG_DIR/django.log" 2>&1 || true
+python3 manage.py runserver 0.0.0.0:8000 >> "$LOG_DIR/django.log" 2>&1 &
 DJANGO_PID=$!
-echo "  Django PID: $DJANGO_PID"
-echo $DJANGO_PID > "$LOG_DIR/django.pid"
+echo "  PID: $DJANGO_PID  |  Log: $LOG_DIR/django.log"
 
-# ─── Frontend (React/Vite) ───────────────────────────────────
-echo ""
-echo "▶ React frontend баштоо (port 5173)…"
-cd "$FRONTEND_DIR"
+# Django даяр болгончо күт
+for i in {1..10}; do
+    sleep 1
+    curl -s http://localhost:8000/api/ > /dev/null 2>&1 && break
+done
+echo "  Django даяр"
 
-# node_modules жок болсо орнот
-if [ ! -d "node_modules" ]; then
-    echo "  npm install иштеп жатат…"
-    npm install --legacy-peer-deps
-fi
+# ─── ngrok Tunnel (туруктуу domain) ──────────────────────────
+echo ""
+echo "  ngrok tunnel баштоо ($NGROK_DOMAIN)..."
+ngrok http 8000 \
+    --domain="$NGROK_DOMAIN" \
+    --log=stdout \
+    --log-format=json > "$LOG_DIR/ngrok.log" 2>&1 &
+NGROK_PID=$!
+sleep 4
+echo "  PID: $NGROK_PID  |  Log: $LOG_DIR/ngrok.log"
 
-nohup npx vite --host 0.0.0.0 >> "$LOG_DIR/frontend.log" 2>&1 &
-VITE_PID=$!
-echo "  Vite PID: $VITE_PID"
-echo $VITE_PID > "$LOG_DIR/frontend.pid"
+# ─── Жыйынтык ────────────────────────────────────────────────
+echo ""
+echo "========================================================"
+echo "  Колдонуучулар үчүн:"
+echo "    https://chef-control-eight.vercel.app"
+echo ""
+echo "  Backend (API + WebSocket):"
+echo "    https://$NGROK_DOMAIN"
+echo ""
+echo "  Камераны баштоо үчүн (башка терминалда):"
+echo "    cd $SCRIPT_DIR && python3 main.py"
+echo ""
+echo "  Токтотуу: Ctrl+C"
+echo "========================================================"
 
-# ─── Жыйынтык ───────────────────────────────────────────────
-sleep 2
-echo ""
-echo "========================================"
-echo "  ✅  Баары иштеп жатат!"
-echo ""
-echo "  🌐  Web:     http://localhost:5173"
-echo "  🔌  API:     http://localhost:8000/api"
-echo "  👤  Admin:   admin / admin123"
-echo ""
-echo "  📷  Детектор баштоо:"
-echo "      cd $SCRIPT_DIR"
-echo "      python3 main.py --source 0"
-echo ""
-echo "  ⛔  Токтотуу:"
-echo "      ./stop.sh"
-echo "========================================"
+# Ctrl+C менен бардыгын токтот
+cleanup() {
+    echo ""
+    echo "  Токтотулуп жатат..."
+    kill $DJANGO_PID $NGROK_PID 2>/dev/null || true
+    pkill -f "manage.py runserver" 2>/dev/null || true
+    pkill -f "ngrok http"          2>/dev/null || true
+    echo "  Бардыгы токтоду."
+    exit 0
+}
+trap cleanup INT TERM
+
+wait $DJANGO_PID
