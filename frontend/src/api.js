@@ -4,7 +4,13 @@ import axios from "axios";
 // Prod: VITE_API_URL=https://your-backend.railway.app
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
-const api = axios.create({ baseURL: `${BASE_URL}/api` });
+const api = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  headers: {
+    // ngrok free tier'дин browser warning'ин айлап өтүү
+    "ngrok-skip-browser-warning": "true",
+  },
+});
 
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("access");
