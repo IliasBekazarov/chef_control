@@ -34,15 +34,15 @@ async def _get_user_from_token(token_str: str):
 
 class MonitorConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        qs   = parse_qs(self.scope["query_string"].decode())
+        qs    = parse_qs(self.scope["query_string"].decode())
         token = (qs.get("token") or [""])[0]
-        user  = await _get_user_from_token(token)
 
-        if not user or isinstance(user, AnonymousUser) or not user.is_active:
-            await self.close(code=4001)
-            return
+        if token:
+            user = await _get_user_from_token(token)
+            if user and not isinstance(user, AnonymousUser) and user.is_active:
+                self.scope["user"] = user
 
-        self.scope["user"] = user
+        # Токен жок болсо дагы Monitor окуй алат (public)
         await self.channel_layer.group_add(MONITOR_GROUP, self.channel_name)
         await self.accept()
 

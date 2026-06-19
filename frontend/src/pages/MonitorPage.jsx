@@ -41,9 +41,10 @@ function useMonitorSocket() {
     const token = localStorage.getItem("access") ||
                   localStorage.getItem("access_token") ||
                   JSON.parse(localStorage.getItem("auth") || "{}").access;
-    if (!token) { setWsState("closed"); return; }
 
-    const ws = new WebSocket(`${WS_URL}?token=${token}`);
+    // Токен бар болсо header менен, жок болсо анонимдик туташуу
+    const url = token ? `${WS_URL}?token=${token}` : WS_URL;
+    const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
