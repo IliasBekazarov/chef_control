@@ -18,7 +18,7 @@ echo "========================================================"
 
 # Эски процесстерди токтот
 pkill -f "manage.py runserver" 2>/dev/null || true
-pkill -f "ngrok http"          2>/dev/null || true
+pkill -f ngrok                 2>/dev/null || true
 sleep 1
 
 # ─── Backend (Django ASGI + WebSocket) ───────────────────────
@@ -37,11 +37,10 @@ for i in {1..10}; do
 done
 echo "  Django даяр"
 
-# ─── ngrok Tunnel (туруктуу domain) ──────────────────────────
+# ─── ngrok Tunnel (туруктуу domain + CORS headers) ───────────
 echo ""
 echo "  ngrok tunnel баштоо ($NGROK_DOMAIN)..."
-ngrok http 8000 \
-    --domain="$NGROK_DOMAIN" \
+ngrok start chef-backend \
     --log=stdout \
     --log-format=json > "$LOG_DIR/ngrok.log" 2>&1 &
 NGROK_PID=$!
@@ -69,7 +68,7 @@ cleanup() {
     echo "  Токтотулуп жатат..."
     kill $DJANGO_PID $NGROK_PID 2>/dev/null || true
     pkill -f "manage.py runserver" 2>/dev/null || true
-    pkill -f "ngrok http"          2>/dev/null || true
+    pkill -f ngrok                 2>/dev/null || true
     echo "  Бардыгы токтоду."
     exit 0
 }

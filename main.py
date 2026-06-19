@@ -38,7 +38,7 @@ signal.signal(signal.SIGTERM, _handle_signal)
 # ─── API Ingest ───────────────────────────────────────────────────────────────
 API_BASE    = os.environ.get("CHEF_API_URL",  "http://localhost:8000/api")
 API_USER    = os.environ.get("CHEF_API_USER", "admin")
-API_PASS    = os.environ.get("CHEF_API_PASS", "admin123")
+API_PASS    = os.environ.get("CHEF_API_PASS", "Admin123!")
 
 _api_token    = None
 _api_session_id = None

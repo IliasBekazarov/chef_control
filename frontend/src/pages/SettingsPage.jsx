@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Sun, Moon, Globe, User, Save, Loader2,
   Bell, BellOff, Send, CheckCircle2, XCircle, ChevronDown,
+  Camera, CameraOff,
 } from "lucide-react";
 import api from "../api";
 
@@ -317,6 +318,84 @@ function TelegramSection() {
   );
 }
 
+// ─── Camera Control section ──────────────────────────────────────────────────
+function CameraSection() {
+  const [running, setRunning] = useState(null);
+  const [pending, setPending] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  useEffect(() => {
+    const fetch = () =>
+      api.get("/camera/").then((r) => setRunning(r.data.running)).catch(() => {});
+    fetch();
+    const iv = setInterval(fetch, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const toggle = async () => {
+    setPending(true); setError(null);
+    try {
+      const { data } = await api.post("/camera/", { action: running ? "stop" : "start" });
+      setRunning(data.running);
+    } catch {
+      setError("Ката чыкты — Django иштеп жатканын текшер");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <motion.div {...FADE_UP(0.15)} className="card p-6 space-y-5">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+        <div className="flex items-center gap-3">
+          <Camera size={18} className={running ? "text-emerald-500" : "text-[var(--muted)]"} />
+          <div>
+            <h2 className="font-semibold">Камера</h2>
+            <p className="text-xs text-[var(--muted)]">Аш үй детекциясын башкаруу</p>
+          </div>
+        </div>
+        {running === null ? (
+          <Loader2 size={15} className="animate-spin text-[var(--muted)]" />
+        ) : (
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+            running
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+          }`}>
+            {running ? "● Иштеп жатат" : "○ Токтогон"}
+          </span>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.p key="err" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="text-sm text-red-500 flex items-center gap-2">
+            <XCircle size={14} /> {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      <button
+        onClick={toggle}
+        disabled={pending || running === null}
+        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition
+          ${running
+            ? "bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+            : "btn-primary"}`}
+      >
+        {pending ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : running ? (
+          <><CameraOff size={16} /> Камераны өчүрүү</>
+        ) : (
+          <><Camera size={16} /> Камераны күйгүзүү</>
+        )}
+      </button>
+    </motion.div>
+  );
+}
+
 // ─── Appearance section ──────────────────────────────────────────────────────
 function AppearanceSection({ dark, toggle }) {
   const { i18n } = useTranslation();
@@ -377,6 +456,7 @@ export default function SettingsPage() {
       </div>
 
       <ProfileSection user={user} />
+      {isAdmin && <CameraSection />}
       {isAdmin && <TelegramSection />}
       <AppearanceSection dark={dark} toggle={toggle} />
     </div>

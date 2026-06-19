@@ -25,6 +25,8 @@ urlpatterns = [
     # PDF Reports
     path("reports/pdf/session/<str:session_id>/", views.pdf_session_report, name="pdf-session"),
     path("reports/pdf/range/",                    views.pdf_range_report,   name="pdf-range"),
+    # Camera
+    path("camera/", views.CameraControlView.as_view(), name="camera-control"),
     # Training
     path("training/status/", views.training_status, name="training-status"),
     path("training/start/",  views.training_start,  name="training-start"),

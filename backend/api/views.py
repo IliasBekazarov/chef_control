@@ -369,8 +369,65 @@ def pdf_range_report(request):
     return resp
 
 
+# ─── Camera Control ──────────────────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+CAMERA_PID_FILE = PROJECT_ROOT / "runs" / "camera.pid"
+
+
+def _camera_running() -> bool:
+    if not CAMERA_PID_FILE.exists():
+        return False
+    try:
+        pid = int(CAMERA_PID_FILE.read_text().strip())
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, ValueError, OSError):
+        CAMERA_PID_FILE.unlink(missing_ok=True)
+        return False
+
+
+class CameraControlView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        return Response({"running": _camera_running()})
+
+    def post(self, request):
+        action = request.data.get("action")
+
+        if action == "start":
+            if _camera_running():
+                return Response({"running": True})
+            CAMERA_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+            (PROJECT_ROOT / "logs").mkdir(exist_ok=True)
+            venv_py    = PROJECT_ROOT / "venv" / "bin" / "python3"
+            python_bin = str(venv_py) if venv_py.exists() else "/usr/bin/python3"
+            log_out    = open(PROJECT_ROOT / "logs" / "camera.log", "a")
+            proc = subprocess.Popen(
+                [python_bin, str(PROJECT_ROOT / "main.py"), "--no-display"],
+                cwd=str(PROJECT_ROOT),
+                stdout=log_out,
+                stderr=subprocess.STDOUT,
+            )
+            CAMERA_PID_FILE.write_text(str(proc.pid))
+            return Response({"running": True})
+
+        elif action == "stop":
+            if CAMERA_PID_FILE.exists():
+                try:
+                    pid = int(CAMERA_PID_FILE.read_text().strip())
+                    os.kill(pid, signal.SIGTERM)
+                except (ProcessLookupError, ValueError, OSError):
+                    pass
+                CAMERA_PID_FILE.unlink(missing_ok=True)
+            return Response({"running": False})
+
+        return Response({"error": "action: 'start' же 'stop' болушу керек"},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
 # ─── Training ─────────────────────────────────────────────────────────────────
-PROJECT_ROOT    = Path(__file__).resolve().parent.parent.parent
 STATUS_FILE     = PROJECT_ROOT / "runs" / "training_status.json"
 TRAIN_PID_FILE  = PROJECT_ROOT / "runs" / "training.pid"
 
